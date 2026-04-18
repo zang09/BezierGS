@@ -37,8 +37,8 @@ def load_camera_info(datadir):
     ego_frame_poses = []
     ego_cam_poses = [[] for i in range(5)]
     ego_pose_paths = sorted(os.listdir(ego_pose_dir))
-    for ego_pose_path in ego_pose_paths:
 
+    for ego_pose_path in ego_pose_paths:
         # frame pose
         if '_' not in ego_pose_path:
             ego_frame_pose = np.loadtxt(os.path.join(ego_pose_dir, ego_pose_path))
@@ -79,7 +79,7 @@ def transform_poses_pca(poses, fix_radius=0):
   Returns:
     A tuple (poses, transform), with the transformed poses and the applied
     camera_to_world transforms.
-    
+
     From https://github.com/SuLvXiangXin/zipnerf-pytorch/blob/af86ea6340b9be6b90ea40f66c0c02484dfc7302/internal/camera_utils.py#L161
   """
     t = poses[:, :3, 3]
@@ -168,14 +168,16 @@ def readDriveXWaymoInfo(args):
         )
         _intrinsics.append(np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]]))
         _distortions.append(np.array([k1, k2, p1, p2, k3]))
+
         # load extrinsics
-        cam_to_ego = np.loadtxt(os.path.join(data_root, "extrinsics", f"{i}.txt"))
+        extrinsics_dir = "extrinsics_fixed" if getattr(args, "fixed", False) else "extrinsics"
+        cam_to_ego = np.loadtxt(os.path.join(data_root, extrinsics_dir, f"{i}.txt"))
         cam_to_egos.append(cam_to_ego)  # opencv_cam -> waymo_cam -> waymo_ego
 
     ego_frame_poses, ego_cam_poses = load_camera_info(data_root)
 
     # ---------------------------------------------
-    # get c2w and w2c transformation per frame and camera 
+    # get c2w and w2c transformation per frame and camera
     # ---------------------------------------------
     # compute per-image poses and intrinsics
     cam_to_worlds, ego_to_worlds = [], []  # ego_to_worlds: list, len = num_frames, each element: [4, 4]
@@ -198,9 +200,10 @@ def readDriveXWaymoInfo(args):
     lidar_to_worlds = np.stack(lidar_to_worlds, axis=0)
 
     # ---------------------------------------------
-    # get image, sky_mask, lidar per frame and camera 
+    # get image, sky_mask, lidar per frame and camera
     # ---------------------------------------------
-    pointcloud_path = os.path.join(data_root, 'pointcloud.npz')
+    pointcloud_name = 'pointcloud_fixed.npz' if getattr(args, "fixed", False) else 'pointcloud.npz'
+    pointcloud_path = os.path.join(data_root, pointcloud_name)
     pts3d_dict = np.load(pointcloud_path, allow_pickle=True)['pointcloud'].item()
     # pts2d_dict = np.load(pointcloud_path, allow_pickle=True)['camera_projection'].item()
 
@@ -240,7 +243,7 @@ def readDriveXWaymoInfo(args):
             images.append(image)
             image_paths.append(image_path)
 
-            sky_path = os.path.join(args.source_path, "sky_mask", f"{t:03d}_{cam_idx}.png")
+            sky_path = os.path.join(args.source_path, "sky_mask", f"{t:06d}_{cam_idx}.png")
             sky_data = Image.open(sky_path)
             sky_data = sky_data.resize((load_size[1], load_size[0]), Image.NEAREST)  # PIL resize: (W, H)
             sky_mask = np.array(sky_data) > 0
@@ -281,7 +284,7 @@ def readDriveXWaymoInfo(args):
                     # choose max IoU
                     cur_bbox_mask = max(seg_masks, key=lambda x: dynamic_bbox_list[bbox_idx][x].sum() / np.logical_or(dynamic_bbox_list[bbox_idx], x).sum())
                     cur_view_mask = np.logical_or(cur_view_mask, cur_bbox_mask)
-                
+
                 # 然后处理没有匹配到分割掩码的bbox，直接使用原始bbox
                 for bbox_idx in range(len(dynamic_bbox_list)):
                     if bbox_idx not in bbox_dict:
@@ -371,7 +374,7 @@ def readDriveXWaymoInfo(args):
                                         sky_mask=sky_mask,
                                         dynamic_mask=dynamic_mask,
                                         bbox_mask=bbox_mask))
-            
+
     pointcloud = np.concatenate(points, axis=0)
     pointcloud_timestamp = np.concatenate(points_time, axis=0)
     indices = np.random.choice(pointcloud.shape[0], args.num_pts, replace=True)
@@ -498,7 +501,7 @@ def readDriveXWaymoInfo(args):
     return scene_info
 
 # trans (4, 4)
-# xyz: (4, N) 
+# xyz: (4, N)
 # trans @ xyz = (4, N)
 
 # xyz.T @ trans.T = (trans @ xyz).T = (N, 4) @ (4, 4) = (N, 4)

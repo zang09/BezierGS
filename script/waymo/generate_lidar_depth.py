@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 from glob import glob
 from tqdm import tqdm
-from lib.utils.img_utils import visualize_depth_numpy
+from utils.img_utils import visualize_depth_numpy
 
 image_filename_to_cam = lambda x: int(x.split('.')[0][-1])
 image_filename_to_frame = lambda x: int(x.split('.')[0][:6])

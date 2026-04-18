@@ -1,6 +1,6 @@
-test_iterations: [7000, 30000]
-save_iterations: [7000, 30000]
-checkpoint_iterations: [7000, 30000]
+test_iterations: [15000, 30000]
+save_iterations: [15000, 30000]
+checkpoint_iterations: [15000, 30000]
 exhaust_test: false
 test_interval: 5000
 render_static: false
@@ -18,6 +18,8 @@ scene_type: "Waymo"
 source_path: ???
 seg_path: ???
 model_path: ???
+camera_projection_path: null
+fixed: false
 resolution_scales: [1]
 resolution: -1
 white_background: false

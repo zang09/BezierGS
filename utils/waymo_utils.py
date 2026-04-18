@@ -320,9 +320,15 @@ def build_pointcloud(args, datadir, object_tracklets_vehicle, object_info, selec
         points_rgb_dict[f'obj_{track_id:03d}'] = []
 
     print('initialize from lidar pointcloud')
-    pointcloud_path = os.path.join(datadir, 'pointcloud.npz')
-    pts3d_dict = np.load(pointcloud_path, allow_pickle=True)['pointcloud'].item()  # len(pts3d_dict) = num_frames, each element: [num_points, 3]
-    pts2d_dict = np.load(pointcloud_path, allow_pickle=True)['camera_projection'].item()
+    pointcloud_name = 'pointcloud_fixed.npz' if getattr(args, 'fixed', False) else 'pointcloud.npz'
+    pointcloud_path = os.path.join(datadir, pointcloud_name)
+    pointcloud_npz = np.load(pointcloud_path, allow_pickle=True)
+    pts3d_dict = pointcloud_npz['pointcloud'].item()  # len(pts3d_dict) = num_frames, each element: [num_points, 3]
+    camera_projection_path = getattr(args, 'camera_projection_path', None)
+    if camera_projection_path in [None, '', '???']:
+        pts2d_dict = pointcloud_npz['camera_projection'].item()
+    else:
+        pts2d_dict = np.load(camera_projection_path, allow_pickle=True)['camera_projection'].item()
 
     for i, frame in tqdm(enumerate(range(start_frame, end_frame + 1))):
         raw_3d = pts3d_dict[frame]

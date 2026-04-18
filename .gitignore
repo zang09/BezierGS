@@ -15,4 +15,5 @@ diff-gaussian-rasterization
 *.png
 *.sh
 *.mp4
+outputs*
 dataset

@@ -3,7 +3,7 @@
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
 # All rights reserved.
 #
-# This software is free for non-commercial, research and evaluation use 
+# This software is free for non-commercial, research and evaluation use
 # under the terms of the LICENSE.md file.
 #
 # For inquiries contact  george.drettakis@inria.fr
@@ -32,7 +32,7 @@ except ImportError:
 
 EPS = 1e-5
 def training(args):
-    
+
     if TENSORBOARD_FOUND:
         tb_writer = SummaryWriter(args.model_path)
     else:
@@ -40,13 +40,17 @@ def training(args):
         print("Tensorboard not available: not logging progress")
     vis_path = os.path.join(args.model_path, 'visualization')
     os.makedirs(vis_path, exist_ok=True)
-    
+
     gaussians = GaussianModel(args)
-    
+
     scene = Scene(args, gaussians)
+    train_cam_count = len(scene.getTrainCameras())
+    test_scale = scene.resolution_scales[scene.scale_index]
+    test_cam_count = len(scene.getTestCameras(scale=test_scale))
+    print(f"Train cameras: {train_cam_count}, Test cameras: {test_cam_count} (scale={test_scale})")
 
     gaussians.training_setup(args)
-    
+
     if args.env_map_res > 0:
         env_map = EnvLight(resolution=args.env_map_res).cuda()
         env_map.training_setup(args)
@@ -70,19 +74,19 @@ def training(args):
     if args.checkpoint:
         (model_params, first_iter) = torch.load(args.checkpoint)
         gaussians.restore(model_params, args)
-        
+
         if env_map is not None:
-            env_checkpoint = os.path.join(os.path.dirname(args.checkpoint), 
+            env_checkpoint = os.path.join(os.path.dirname(args.checkpoint),
                                         os.path.basename(args.checkpoint).replace("chkpnt", "env_light_chkpnt"))
             (light_params, _) = torch.load(env_checkpoint)
             env_map.restore(light_params)
         if color_correction is not None:
-            color_correction_checkpoint = os.path.join(os.path.dirname(args.checkpoint), 
+            color_correction_checkpoint = os.path.join(os.path.dirname(args.checkpoint),
                                         os.path.basename(args.checkpoint).replace("chkpnt", "color_correction_chkpnt"))
             (color_correction_params, _) = torch.load(color_correction_checkpoint)
             color_correction.restore(color_correction_params)
         if pose_correction is not None:
-            pose_correction_checkpoint = os.path.join(os.path.dirname(args.checkpoint), 
+            pose_correction_checkpoint = os.path.join(os.path.dirname(args.checkpoint),
                                         os.path.basename(args.checkpoint).replace("chkpnt", "pose_correction_chkpnt"))
             (pose_correction_params, _) = torch.load(pose_correction_checkpoint)
             pose_correction.restore(pose_correction_params)
@@ -99,8 +103,8 @@ def training(args):
     ema_dict_for_log = defaultdict(int)
 
     progress_bar = tqdm(range(first_iter + 1, args.iterations + 1), desc="Training progress")
-    
-    for iteration in range(first_iter + 1, args.iterations + 1):   
+
+    for iteration in range(first_iter + 1, args.iterations + 1):
         iter_start.record()
         gaussians.update_learning_rate(iteration)
         if color_correction is not None:
@@ -115,12 +119,12 @@ def training(args):
         if not viewpoint_stack:
             viewpoint_stack = list(range(len(scene.getTrainCameras())))
         viewpoint_cam = scene.getTrainCameras()[viewpoint_stack.pop(randint(0, len(viewpoint_stack) - 1))]
-        
+
         # render v
         v, _ = gaussians.get_inst_velocity(viewpoint_cam.timestamp)
         other = [v]
 
-        render_pkg = render(viewpoint_cam, gaussians, args, background, env_map=env_map, color_correction=color_correction, pose_correction=pose_correction, 
+        render_pkg = render(viewpoint_cam, gaussians, args, background, env_map=env_map, color_correction=color_correction, pose_correction=pose_correction,
                                   other=other, is_training=True)
 
 
@@ -134,7 +138,7 @@ def training(args):
 
         feature = render_pkg['feature'] / alpha.clamp_min(EPS)
         v_map = feature
-        
+
         sky_mask = viewpoint_cam.sky_mask.cuda() if viewpoint_cam.sky_mask is not None else torch.zeros_like(alpha, dtype=torch.bool)
         dynamic_mask = viewpoint_cam.dynamic_mask.repeat(3, 1, 1)
         static_mask = torch.logical_not(dynamic_mask)
@@ -146,16 +150,16 @@ def training(args):
                 depth = 1 / (alpha / depth.clamp_min(EPS) + (1 - alpha) / sky_depth).clamp_min(EPS)
             elif args.depth_blend_mode == 1:
                 depth = alpha * depth + (1 - alpha) * sky_depth
-            
+
         gt_image, gt_image_gray = viewpoint_cam.get_image()
-        
+
         loss_l1 = F.l1_loss(image, gt_image)
         log_dict['loss_l1'] = loss_l1.item()
         loss_ssim = 1.0 - ssim(image, gt_image)
         log_dict['loss_ssim'] = loss_ssim.item()
         loss = (1.0 - args.lambda_dssim) * loss_l1 + args.lambda_dssim * loss_ssim
 
-        dynamic_render_pkg = render(viewpoint_cam, gaussians, args, background, color_correction=color_correction, pose_correction=pose_correction, 
+        dynamic_render_pkg = render(viewpoint_cam, gaussians, args, background, color_correction=color_correction, pose_correction=pose_correction,
                                           other=other, mask=(gaussians.get_group != 0), is_training=True)
         dynamic_image = torch.zeros_like(gt_image)
         dynamic_image[dynamic_mask] = gt_image[dynamic_mask]
@@ -190,14 +194,14 @@ def training(args):
             loss_inv_depth = kornia.losses.inverse_depth_smoothness_loss(inverse_depth[None], gt_image[None])
             log_dict['loss_inv_depth'] = loss_inv_depth.item()
             loss = loss + args.lambda_inv_depth * loss_inv_depth
-        
+
         if args.lambda_sky_opa > 0:
             o = alpha.clamp(1e-6, 1-1e-6)
             sky = sky_mask.float()
             loss_sky_opa = (-sky * torch.log(1 - o)).mean()
             log_dict['loss_sky_opa'] = loss_sky_opa.item()
             loss = loss + args.lambda_sky_opa * loss_sky_opa
-            
+
         if args.lambda_velocity > 0:
             loss_static_mask = torch.abs(v_map[static_mask]).mean()
             log_dict["loss_static_mask"] = loss_static_mask.item()
@@ -213,7 +217,7 @@ def training(args):
 
         loss.backward()
         log_dict['loss'] = loss.item()
-        
+
         iter_end.record()
         torch.cuda.synchronize()
 
@@ -222,7 +226,7 @@ def training(args):
             log_dict["psnr"] = psnr_for_log
             for key in ['loss', "loss_l1", "psnr"]:
                 ema_dict_for_log[key] = 0.4 * log_dict[key] + 0.6 * ema_dict_for_log[key]
-                
+
             if iteration % 10 == 0:
                 postfix = {k[5:] if k.startswith("loss_") else k:f"{ema_dict_for_log[k]:.{5}f}" for k, v in ema_dict_for_log.items()}
                 postfix["scale"] = scene.resolution_scales[scene.scale_index]
@@ -233,7 +237,7 @@ def training(args):
             log_dict['iter_time'] = iter_start.elapsed_time(iter_end)
             log_dict['total_points'] = gaussians.get_xyz.shape[0]
             # Log and save
-            complete_eval(tb_writer, iteration, args.test_iterations, scene, render, (args, background), 
+            complete_eval(tb_writer, iteration, args.test_iterations, scene, render, (args, background),
                           log_dict, env_map=env_map, color_correction=color_correction, pose_correction=pose_correction)
 
             # Densification
@@ -294,12 +298,12 @@ def training(args):
                 current_memory = torch.cuda.memory_allocated() / (1024 ** 3)  # GB
                 max_memory = torch.cuda.max_memory_allocated() / (1024 ** 3)  # GB
                 reserved_memory = torch.cuda.memory_reserved() / (1024 ** 3)  # GB
-                
+
                 # 将显存信息保存到日志文件
                 mem_log_path = os.path.join(args.model_path, 'mem.log')
                 with open(mem_log_path, 'a') as f:
                     f.write(f"[ITER {iteration}] 当前显存: {current_memory:.4f} GB, 峰值显存: {max_memory:.4f} GB, 保留显存: {reserved_memory:.4f} GB, 点数量: {gaussians.get_xyz.shape[0]}\n")
-            
+
             if iteration % args.scale_increase_interval == 0:
                 scene.upScale()
 
@@ -397,8 +401,8 @@ def complete_eval(tb_writer, iteration, test_iterations, scene : Scene, renderFu
 
                     pts_depth_vis = visualize_depth(viewpoint.pts_depth)
 
-                    grid = [gt_image, gt_dynamic_image, bbox_mask, pts_depth_vis, 
-                            image, dynamic_render / dynamic_alpha.clamp_min(EPS), dynamic_alpha.repeat(3, 1, 1), depth, 
+                    grid = [gt_image, gt_dynamic_image, bbox_mask, pts_depth_vis,
+                            image, dynamic_render / dynamic_alpha.clamp_min(EPS), dynamic_alpha.repeat(3, 1, 1), depth,
                             v_color, dynamic_render, alpha, static_alpha.repeat(3, 1, 1)]
                     grid = make_grid(grid, nrow=4)
 
@@ -451,21 +455,23 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="Training script parameters")
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--base_config", type=str, default = "configs/base.yaml")
-    args, _ = parser.parse_known_args()
-    
-    base_conf = OmegaConf.load(args.base_config)
-    second_conf = OmegaConf.load(args.config)
-    cli_conf = OmegaConf.from_cli()
+    parser.add_argument("--fixed", action="store_true", help="Use *_fixed calibration/data files when available.")
+    parsed_args, unknown_args = parser.parse_known_args()
+
+    base_conf = OmegaConf.load(parsed_args.base_config)
+    second_conf = OmegaConf.load(parsed_args.config)
+    cli_conf = OmegaConf.from_cli(unknown_args)
     args = OmegaConf.merge(base_conf, second_conf, cli_conf)
+    args.fixed = bool(parsed_args.fixed or getattr(args, "fixed", False))
     print(args)
-    
+
     args.save_iterations.append(args.iterations)
     args.checkpoint_iterations.append(args.iterations)
     args.test_iterations.append(args.iterations)
 
     if args.exhaust_test:
         args.test_iterations += [i for i in range(0,args.iterations, args.test_interval)]
-    
+
     print("Optimizing " + args.model_path)
     os.makedirs(args.model_path, exist_ok=True)
     OmegaConf.save(args, os.path.join(args.model_path, "config.yaml"))
