@@ -107,7 +107,10 @@ git clone https://github.com/xinyu1205/recognize-anything.git
 pip install -r ./recognize-anything/requirements.txt
 pip install -e ./recognize-anything/
 
-pip install opencv-python pycocotools matplotlib onnxruntime onnx ipykernel termcolor imageio
+pip install opencv-python pycocotools matplotlib onnxruntime onnx ipykernel termcolor
+
+pip install 'imageio[ffmpeg]'
+pip install 'imageio[pyav]'
 
 # Optional (if invoke torch error)
 pip install --force-reinstall "numpy==1.26.4" "transformers==4.35.2"

@@ -41,7 +41,7 @@ for text_prompt in "${TEXT_PROMPTS[@]}"; do
     echo "Processing text prompt: $text_prompt"
     
     # First device processes camera 0 images.
-    CUDA_VISIBLE_DEVICES="${CAM_DEVICES[0]}" python grounded_sam_demo.py \
+    CUDA_VISIBLE_DEVICES="${CAM_DEVICES[0]}" python Grounded-Segment-Anything/grounded_sam_demo.py \
         --config Grounded-Segment-Anything/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py \
         --grounded_checkpoint Grounded-Segment-Anything/weights/groundingdino_swint_ogc.pth \
         --sam_checkpoint Grounded-Segment-Anything/weights/sam_vit_h_4b8939.pth \
@@ -54,7 +54,7 @@ for text_prompt in "${TEXT_PROMPTS[@]}"; do
         --file_pattern "*_0.png" &
 
     # Second device processes camera 1 images.
-    CUDA_VISIBLE_DEVICES="${CAM_DEVICES[1]}" python grounded_sam_demo.py \
+    CUDA_VISIBLE_DEVICES="${CAM_DEVICES[1]}" python Grounded-Segment-Anything/grounded_sam_demo.py \
         --config Grounded-Segment-Anything/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py \
         --grounded_checkpoint Grounded-Segment-Anything/weights/groundingdino_swint_ogc.pth \
         --sam_checkpoint Grounded-Segment-Anything/weights/sam_vit_h_4b8939.pth \
@@ -67,7 +67,7 @@ for text_prompt in "${TEXT_PROMPTS[@]}"; do
         --file_pattern "*_1.png" &
 
     # Third device processes camera 2 images.
-    CUDA_VISIBLE_DEVICES="${CAM_DEVICES[2]}" python grounded_sam_demo.py \
+    CUDA_VISIBLE_DEVICES="${CAM_DEVICES[2]}" python Grounded-Segment-Anything/grounded_sam_demo.py \
         --config Grounded-Segment-Anything/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py \
         --grounded_checkpoint Grounded-Segment-Anything/weights/groundingdino_swint_ogc.pth \
         --sam_checkpoint Grounded-Segment-Anything/weights/sam_vit_h_4b8939.pth \
