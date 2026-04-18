@@ -13,7 +13,6 @@ eval_output
 diff-gaussian-rasterization
 *.ply
 *.png
-*.sh
 *.mp4
 outputs*
 dataset
