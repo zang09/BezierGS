@@ -133,6 +133,24 @@ python script/waymo/generate_sky_mask.py --datadir DATA_DIR --sam_checkpoint SAM
 ```
 
 Generating instance segmentation
+
+Change `code`(Grounded-Segment-Anything/grounded_sam_demo.py) like this, if occur import error:
+```python
+# Before
+sys.path.append(os.path.join(os.getcwd(), "GroundingDINO"))
+sys.path.append(os.path.join(os.getcwd(), "segment_anything"))
+
+# After
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+for path in (
+    ROOT_DIR,
+    os.path.join(ROOT_DIR, "GroundingDINO"),
+    os.path.join(ROOT_DIR, "segment_anything"),
+):
+    if path not in sys.path:
+        sys.path.insert(0, path)
+```
+
 ```bash
 conda deactivate
 conda activate grounding_sam
