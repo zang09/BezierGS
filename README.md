@@ -28,7 +28,7 @@
 ### Environment
 ```bash
 # Clone the repo.
-git clone https://github.com/fudan-zvg/BezierGS
+git clone https://github.com/fudan-zvg/BezierGS --recursive
 cd BezierGS
 
 # Make a conda environment.
@@ -59,43 +59,97 @@ Create a directory for the data: `mkdir dataset`. We provide some processed data
 
 We provide the split file following [EmerNeRF](https://github.com/NVlabs/EmerNeRF). You can refer to this [document](https://github.com/NVlabs/EmerNeRF/blob/main/docs/NOTR.md) for download details.
 
-#### Preprocess the data
+#### Preprocess the data (prepare_1.sh & prepare_2.sh)
+---
+Create waymo env
+```bash
+conda create -n waymo python=3.8 -y
+conda activate waymo
+
+pip install requirements-data.txt
+pip install git+https://github.com/gdlg/simple-waymo-open-dataset-reader.git
+```
+---
 
 Preprocess the example scenes
-
 ```bash
+conda deactivate
+conda activate waymo
+
 python script/waymo/waymo_converter.py --root_dir TRAINING_SET_DIR --save_dir SAVE_DIR --split_file script/waymo/waymo_splits/demo.txt --segment_file script/waymo/waymo_splits/segment_list_train.txt
 ```
 
 Generating LiDAR depth
-
-
 ```bash
+conda deactivate
+conda activate waymo
+
 python script/waymo/generate_lidar_depth.py --datadir DATA_DIR
 ```
 
-Generating sky mask
-
-Install GroundingDINO following this [repo](https://github.com/IDEA-Research/GroundingDINO) and download SAM checkpoint from [this link](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth).
-
+---
+Create grounding_sam env (following this [repo](https://github.com/xiao10ma/Grounded-Segment-Anything))
 ```bash
+conda create -n grounded_sam python=3.9 -y
+conda activate grounded_sam
+
+pip install torch==2.1.0+cu118 torchvision==0.16.0+cu118 torchaudio==2.1.0+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
+
+cd Grounded-Segment-Anything
+pip install -e segment_anything
+pip install --no-build-isolation -e GroundingDINO
+pip install --upgrade 'diffusers[torch]'
+
+git submodule update --init --recursive
+cd grounded-sam-osx && bash install.sh
+
+git clone https://github.com/xinyu1205/recognize-anything.git
+pip install -r ./recognize-anything/requirements.txt
+pip install -e ./recognize-anything/
+
+pip install opencv-python pycocotools matplotlib onnxruntime onnx ipykernel termcolor imageio
+
+# Optional (if invoke torch error)
+pip install --force-reinstall "numpy==1.26.4" "transformers==4.35.2"
+```
+
+Download checkpoint
+```bash
+mkdir weights && cd weights
+wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
+wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth
+```
+
+---
+Generating sky mask
+```bash
+conda deactivate
+conda activate grounding_sam
+
 python script/waymo/generate_sky_mask.py --datadir DATA_DIR --sam_checkpoint SAM_CHECKPOINT
 ```
 
-Generating intance segmentation
+Generating instance segmentation
 ```bash
-git clone https://github.com/xiao10ma/Grounded-Segment-Anything.git
-cd Grounded-Segment-Anything
-```
-follow the instruction in the repo to install the dependencies.
+conda deactivate
+conda activate grounding_sam
 
-Run the following command to generate the instance segmentation.
-```bash
-bash waymo_run.sh
+bash waymo_segmentation.sh $SCENE_ID
 ```
+
+#### Regenerating pointcloud.npz (regenerate.sh)
+If the extrinsics are fixed, you need to regenerate the point cloud and camera projections accordingly.
+```bash
+conda deactivate
+conda activate bezier
+
+bash regenerate.sh $SCENE_ID
+```
+
 </details>
 
-### Training
+
+### Training (run.sh)
 
 ```
 CUDA_VISIBLE_DEVICES=0 python train.py \
@@ -106,7 +160,21 @@ model_path=eval_output/waymo_nvs/017
 
 After training, evaluation results can be found in `{EXPERIMENT_DIR}/eval_output` directory.
 
-### Evaluating
+### Rendering
+
+```
+CUDA_VISIBLE_DEVICES=0 python render.py \
+--config configs/waymo/017.yaml \
+source_path=dataset/017 \
+model_path=eval_output/waymo_nvs/017 \
+checkpoint=eval_output/waymo_nvs/017/chkpnt30000.pth \
+render_split=test \
+render_camera_id=0 \
+render_interp_steps=10 \
+render_fps=30
+```
+
+### Evaluating (eval.sh)
 
 You can also use the following command to evaluate.
 
